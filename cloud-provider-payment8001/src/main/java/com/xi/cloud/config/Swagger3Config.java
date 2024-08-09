@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * @author Wu
  * @date 2024/8/8 16:26:10
- * @description
+ * @description Swager3配置 用生成接口文档
  */
 @Configuration// 这是一个配置类
 public class Swagger3Config {
