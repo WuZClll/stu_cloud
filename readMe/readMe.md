@@ -1,4 +1,9 @@
+原视频：
+
+<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1851137936&bvid=BV1gW421P7RD&cid=1450576283&p=1&autoplay=0" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+
 ### 运行环境要求
+
 | 组件           | 版本           | 
 |---------------|--------------|
 | java          | java17+      |
@@ -8,7 +13,15 @@
 | Maven         | 3.9+         |
 | Mysql         | 8.0+         |
 
-[课程笔记](./note.html)
+[前往尚硅谷课程笔记](./note.html)
+
+| 模块                                                         | 用途                                 |
+| :----------------------------------------------------------- | :----------------------------------- |
+| [cloud-provider-payment8001](##一. cloud-provider-payment8001) | 微服务提供者支付module模块           |
+| [cloud-consumer-order80](##二. cloud-consumer-order80)       | 微服务调用者订单module模块           |
+| [cloud-api-commons](##三. cloud-api-commons)                 | 对外暴露通用的组件/api/接口/工具类等 |
+
+
 
 ## 一. cloud-provider-payment8001
 
@@ -74,6 +87,8 @@ http://localhost:8001/swagger-ui/index.html
 
 ## 二. cloud-consumer-order80
 
+微服务调用者订单module模块
+
 ### RestTemplate访问远程Http
 
 RestTemplate提供了多种便捷**访问远程Http**服务的方法， 是一种简单便捷的访问restful服务模板类，是Spring提供的用于访问Rest服务的客户端模板工具集
@@ -121,4 +136,39 @@ getForEntity: 返回对象为ResponseEntity对象，包含了响应中的一些�
 
 <T> ResponseEntity<T> postForEntity(URI url, @Nullable Object request, Class<T> responseType);
 ```
+
+## 三. cloud-api-commons
+
+对外暴露通用的组件/api/接口/工具类等
+
+### 工程重构
+
+发现系统中有重复部分，进行**工程重构**，将重复部分写入cloud-api-commons，将其作为对外暴露通用的组件/api/接口/工具类
+
+对cloud-api-commons执行maven命令`clear`、`install`
+
+```html
+<!-- 对需要使用cloud-api-commons对外暴露的通用组件/api/接口/工具类的微服务引入自己定义的api通用包 -->
+<dependency>
+    <groupId>com.xi.cloud</groupId>
+    <artifactId>cloud-api-commons</artifactId>
+    <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+
+### 开始引入SpringCloud
+
+**硬编码写死问题**
+
+```java
+public static final String PaymentSrv_URL = "http://localhost:8001";// 硬编码
+```
+
+微服务所在的IP地址和端口号硬编码到订单微服务中，会存在非常多的问题
+
+1. 如果订单微服务和支付微服务的IP地址或者端口号发生了变化，则支付微服务将变得不可用，需要同步修改订单微服务中调用支付微服务的IP地址和端口号。
+2. 如果系统中提供了多个订单微服务和支付微服务，则无法实现微服务的负载均衡功能。
+3. 如果系统需要支持更高的并发，需要部署更多的订单微服务和支付微服务，硬编码订单微服务则后续的维护会变得异常复杂。
+
+所以，在微服务开发的过程中，需要引入服务治理功能，实现微服务之间的动态注册与发现，从此刻开始我们**正式进入SpringCloud实战**
 
