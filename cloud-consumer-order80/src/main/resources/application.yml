@@ -1,2 +1,13 @@
 server:
   port: 80
+spring:
+  application:
+    name: cloud-consumer-order
+  ####Spring Cloud Consul for Service Discovery(服务发现)
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      discovery:
+        # 80将要以这个名字入驻进Consul
+        service-name: ${spring.application.name}

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -61,5 +62,15 @@ public class PayController {
     @Operation(summary = "查所有流水",description = "查询所有支付流水方法")
     public ResultData<List<Pay>> getAll() {
         return ResultData.success(payService.getAll());
+    }
+
+
+    // 测试consul上的配置本地是否可以获取成功
+    @Value("${server.port}")
+    private String port;
+    @GetMapping(value = "/pay/get/info")
+    public String getInfoByConsul(@Value("${xi.info}") String xiInfo) {
+        return "xiInfo: " + xiInfo + "\t" + "port: " + port;
+
     }
 }

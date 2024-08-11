@@ -18,6 +18,18 @@
     </properties>
 
     <dependencies>
+        <!--SpringCloud consul discovery -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-consul-discovery</artifactId>
+            <!-- 排除Commons-Logging.jar，以避免潜在的冲突 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <!-- 引入自己定义的api通用包 -->
         <dependency>
             <groupId>com.xi.cloud</groupId>

@@ -19,6 +19,28 @@
 
 
     <dependencies>
+        <!--SpringCloud consul config consul配置管理-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-consul-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+        <!--SpringCloud consul discovery consul服务发现 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-consul-discovery</artifactId>
+            <!-- 排除Commons-Logging.jar，以避免潜在的冲突 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <!-- 引入自己定义的api通用包 -->
         <dependency>
             <groupId>com.xi.cloud</groupId>
