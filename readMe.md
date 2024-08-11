@@ -21,7 +21,7 @@
 | [cloud-consumer-order80](##二. cloud-consumer-order80)       | 微服务调用者订单module模块           |
 | [cloud-api-commons](##三. cloud-api-commons)                 | 对外暴露通用的组件/api/接口/工具类等 |
 
-
+![image-20240811192237239](./MDImg/image-20240811192237239.png)
 
 # Ⅰ. 微服务架构Base工程模块构建
 
@@ -480,3 +480,83 @@ Consul 遵循CAP原理中的CP原则，保证了强一致性和分区容错性�
 Consul重启后consul里的配置消失了
 
 由此我们需要做Consul的配置持久化
+
+[LoadBalancer解决Consul持久化](###LoadBalancer之Consul持久化)
+
+# Ⅲ. 服务调用和负载均衡
+
+## LoadBalancer负载均衡服务调用
+
+前身是Ribbon目前已进入维护模式
+
+Spring Cloud Ribbon是基于Netflix Ribbon实现的一套**客户端    负载均衡**的工具。
+
+简单的说，Ribbon是Netflix发布的开源项目，主要功能是**提供客户端的软件负载均衡算法和服务调用**。Ribbon客户端组件提供一系列完善的配置项如连接超时，重试等。简单的说，就是在配置文件中列出Load Balancer（简称LB）后面所有的机器，Ribbon会自动的帮助你基于某种规则（如简单轮询，随机连接等）去连接这些机器。我们很容易使用Ribbon实现自定义的负载均衡算法。
+
+Ribbon未来替换方案：**spring-cloud-loadbalancer**
+
+[spring-cloud-loadbalancer官网](https://docs.spring.io/spring-cloud-commons/docs/current/reference/html/#spring-cloud-loadbalancer)
+
+### spring-cloud-loadbalancer是什么
+
+**LB负载均衡(Load Balance)是什么**
+
+简单的说就是将用户的请求平摊的分配到多个服务上，从而达到系统的HA（高可用），常见的负载均衡有软件Nginx，LVS，硬件 F5等
+
+**spring-cloud-starter-loadbalancer组件是什么**
+
+Spring Cloud LoadBalancer是由SpringCloud官方提供的一个开源的、简单易用的**客户端负载均衡器**，它包含在SpringCloud-commons中**用它来替换了以前的Ribbon组件**。相比较于Ribbon，SpringCloud LoadBalancer不仅能够支持RestTemplate，还支持WebClient（WeClient是Spring Web Flux中提供的功能，可以实现响应式异步请求）
+
+### 客户端和服务器端负载均衡的区别
+
+loadbalancer本地负载均衡客户端和Nginx服务端负载均衡区别
+
+- Nginx是**服务器负载均衡**，客户端所有请求都会交给nginx，然后由**nginx实现转发请求**，即负载均衡是由服务端实现的。
+- loadbalancer**本地负载均衡**，在调用微服务接口时候，会在**注册中心上获取注册信息服务列表之后缓存到JVM本地**，从而在**本地实现RPC远程服务调用技术**。
+
+### 负载均衡案例
+
+#### 理论
+
+80通过轮询负载访问8001、8002、8003
+
+![image-20240811194424109](./MDImg/image-20240811194424109.png)
+
+LoadBalancer 在工作时分成两步：
+
+- **第一步**，先选择ConsulServer从服务端查询并拉取服务列表，知道了它有多个服务(上图3个服务)，这3个实现是完全一样的，默认轮询调用谁都可以正常执行。类似生活中求医挂号，某个科室今日出诊的全部医生，客户端你自己选一个。
+- **第二步**，按照指定的负载均衡策略从server取到的服务注册列表中由客户端自己选择一个地址，所以LoadBalancer是一个**客户端的**负载均衡器。
+
+#### 实操
+
+启动Consul，将8001、8002启动后注册进微服务
+
+### LoadBalancer之Consul持久化
+
+Consul数据持久化配置，并且注册为Windows服务
+
+1. consul下载目录下新建空文件夹`mydata`和`consul_start.bat`文件
+
+2. `consul_start.bat`内容信息
+
+   ```bash
+   @echo.服务启动......  
+   @echo off  
+   @sc create Consul binpath= "D:\devSoft\consul_1.17.0_windows_386\consul.exe agent -server -ui -bind=127.0.0.1 -client=0.0.0.0 -bootstrap-expect  1  -data-dir D:\devSoft\consul_1.17.0_windows_386\mydata   "
+   @net start Consul
+   @sc config Consul start= AUTO  
+   @echo.Consul start is OK......success
+   @pause
+   ```
+
+   - `@sc create Consul binpath= "Consul安装路径\consul.exe agent -server(以服务器后台形式启动) -ui -bind=127.0.0.1(绑定本机) -client=0.0.0.0 -bootstrap-expect  1  -data-dir consul的配置数据存储路径"`
+   - `@sc config Consul start= AUTO (是否每次开机启动) `
+
+3. 右键管理员权限打开
+
+4. 后续consul的配置数据会保存进mydata文件夹
+
+## OpenFeign服务接口调用
+
+
+
