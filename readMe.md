@@ -483,9 +483,7 @@ Consul重启后consul里的配置消失了
 
 [LoadBalancer解决Consul持久化](###LoadBalancer之Consul持久化)
 
-# Ⅲ. 服务调用和负载均衡
-
-## LoadBalancer负载均衡服务调用
+# Ⅲ.LoadBalancer负载均衡服务调用
 
 前身是Ribbon目前已进入维护模式
 
@@ -497,7 +495,7 @@ Ribbon未来替换方案：**spring-cloud-loadbalancer**
 
 [spring-cloud-loadbalancer官网](https://docs.spring.io/spring-cloud-commons/docs/current/reference/html/#spring-cloud-loadbalancer)
 
-### spring-cloud-loadbalancer是什么
+## spring-cloud-loadbalancer是什么
 
 **LB负载均衡(Load Balance)是什么**
 
@@ -506,6 +504,8 @@ Ribbon未来替换方案：**spring-cloud-loadbalancer**
 **spring-cloud-starter-loadbalancer组件是什么**
 
 Spring Cloud LoadBalancer是由SpringCloud官方提供的一个开源的、简单易用的**客户端负载均衡器**，它包含在SpringCloud-commons中**用它来替换了以前的Ribbon组件**。相比较于Ribbon，SpringCloud LoadBalancer不仅能够支持RestTemplate，还支持WebClient（WeClient是Spring Web Flux中提供的功能，可以实现响应式异步请求）
+
+## loadBalancer负载均衡
 
 ### 客户端和服务器端负载均衡的区别
 
@@ -529,9 +529,77 @@ LoadBalancer 在工作时分成两步：
 
 #### 实操
 
-启动Consul，将8001、8002启动后注册进微服务
+1. 启动Consul，将8001、8002启动后注册进微服务
 
-### LoadBalancer之Consul持久化
+2. 订单80模块(客户端，消费者侧)**修改POM**并注册进consul**新增LoadBalancer组件**
+   ```html
+   <!--loadbalancer-->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+   </dependency>
+   ```
+
+3. 修改Controller进行测试
+
+   ```java
+   @GetMapping(value = "/consumer/pay/get/info")
+   private String getInfoByConsul() {
+       // PaymentSrv_URL是注册进consul中的微服务名字(同一微服务名可能有多个不同端口的相同微服务)
+       return restTemplate.getForObject(PaymentSrv_URL + "/pay/get/info", String.class);
+   }
+   ```
+
+4. 发现交替访问8001、8002
+
+### 负载均衡算法
+
+默认**轮询**： $rest接口第几次请求数 \% 服务器集群总数量 = 实际调用服务器位置下标$ ，每次服务重启动后rest接口计数从1开始。
+
+`List<ServiceInstance> instances = discoveryClient.getInstances("cloud-payment-service");`
+
+如：` List [0] instances = 127.0.0.1:8002`
+
+　　`　List [1] instances = 127.0.0.1:8001`
+
+8001+ 8002 组合成为集群，它们共计2台机器，集群总数为2， 按照**轮询算法**原理：
+
+- 当总请求数为1时： 1 % 2 =1 对应下标位置为1 ，则获得服务地址为127.0.0.1:8001
+- 当总请求数位2时： 2 % 2 =0 对应下标位置为0 ，则获得服务地址为127.0.0.1:8002
+- 当总请求数位3时： 3 % 2 =1 对应下标位置为1 ，则获得服务地址为127.0.0.1:8001
+- 当总请求数位4时： 4 % 2 =0 对应下标位置为0 ，则获得服务地址为127.0.0.1:8002
+- 如此类推......
+
+默认有两种算法 轮询和随机，一般来说轮询就够用了
+
+**修改负载均衡算法**
+
+```java
+@Configuration// 使用 @Configuration 标记类作为配置类替换 xml 配置文件
+@LoadBalancerClient(value = "cloud-payment-service",configuration = RestTemplateConfig.class)// @LoadBalancerClient 将要对value这个微服务执行实现新的RestTemplate配置 这个配置在configuration这个类中      value值大小写一定要和consul里面的名字一样，必须一样       不使用这个注解默认为轮询
+public class RestTemplateConfig {
+    @Bean
+    @LoadBalanced //使用@LoadBalanced注解赋予RestTemplate负载均衡的能力 提供RestTemplate(远程访问Http)对负载均衡的支撑
+    public RestTemplate restTemplate(){
+        return new RestTemplate();
+    }
+
+    /**
+     * 默认轮询 加此方法，修改为了随机
+     * @param environment
+     * @param loadBalancerClientFactory
+     * @return
+     */
+    @Bean    ReactorLoadBalancer<ServiceInstance> randomLoadBalancer(Environment environment,
+                                                           LoadBalancerClientFactory loadBalancerClientFactory) {
+        String name = environment.getProperty(LoadBalancerClientFactory.PROPERTY_NAME);
+
+        return new RandomLoadBalancer(loadBalancerClientFactory.getLazyProvider(name, ServiceInstanceListSupplier.class), name);
+    }
+}
+```
+
+## LoadBalancer之Consul持久化
 
 Consul数据持久化配置，并且注册为Windows服务
 
@@ -556,7 +624,9 @@ Consul数据持久化配置，并且注册为Windows服务
 
 4. 后续consul的配置数据会保存进mydata文件夹
 
-## OpenFeign服务接口调用
+这样每次开机都会自动启动consul服务
+
+# Ⅳ. OpenFeign服务接口调用
 
 
 
