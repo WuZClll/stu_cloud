@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * @author Wu
  * @date 2024/8/9 16:09:09
- * @description
+ * @description 使用loadBalancer 负载均衡
  */
 @RestController
 public class OrderController {

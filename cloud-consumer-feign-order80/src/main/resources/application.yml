@@ -1,0 +1,55 @@
+server:
+  port: 80
+spring:
+  application:
+    name: cloud-consumer-order
+  ####Spring Cloud Consul for Service Discovery(服务发现)
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      discovery:
+        # 80将要以这个名字入驻进Consul
+        prefer-agent-address: true # 是否优先使用ip进行注册
+        service-name: ${spring.application.name}
+    openfeign:
+      client:
+        config:
+#          default: # 全局通用配置
+#            #连接超时时间
+#            connectTimeout: 3000
+#            #读取超时时间
+#            readTimeout: 3000
+          cloud-payment-service: # 全局通用配置
+            #连接超时时间
+            connectTimeout: 3000
+            #读取超时时间
+            readTimeout: 3000
+      httpclient:
+        hc5:
+          enabled: true # 启用httpclient5提升性能. OpenFeign使用 Apache HttpClient 5 替换OpenFeign默认的HttpURLConnection 以提升性能
+      compression: # 请求回应压缩
+        request: # 请求
+          enabled: true # 开启请求压缩功能
+          min-request-size: 2048 # 最小触发压缩的大小
+          mime-types: text/xml,application/xml,application/json # 触发压缩数据类型
+        response: # 响应
+          enabled: true # 开启响应压缩功能
+
+# logging.level + 含有@FeignClient注解的完整带包名的接口名+debug级别
+# feign日志以什么级别监控哪个接口(OpenFeign对外暴露服务功能清单的接口)
+logging:
+  level:
+    com:
+      xi:
+        cloud:
+          apis:
+            # 日志级别:
+            #
+            #- `NONE`：默认的，不显示任何日志；
+            #- `BASIC`：仅记录请求方法、URL、响应状态码及执行时间；
+            #- `HEADERS`：除了 `BASIC` 中定义的信息之外，还有请求和响应的头信息；
+            #- `FULL`：除了 `HEADERS` 中定义的信息之外，还有请求和响应的正文及元数据。
+            PayFeignApi: debug
+
+
