@@ -19,6 +19,7 @@
 
 
     <dependencies>
+
         <!--SpringCloud consul config consul配置管理-->
         <dependency>
             <groupId>org.springframework.cloud</groupId>

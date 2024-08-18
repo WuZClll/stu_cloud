@@ -22,9 +22,9 @@ spring:
 #            readTimeout: 3000
           cloud-payment-service: # 全局通用配置
             #连接超时时间
-            connectTimeout: 3000
+            connectTimeout: 20000
             #读取超时时间
-            readTimeout: 3000
+            readTimeout: 20000
       httpclient:
         hc5:
           enabled: true # 启用httpclient5提升性能. OpenFeign使用 Apache HttpClient 5 替换OpenFeign默认的HttpURLConnection 以提升性能
@@ -35,6 +35,12 @@ spring:
           mime-types: text/xml,application/xml,application/json # 触发压缩数据类型
         response: # 响应
           enabled: true # 开启响应压缩功能
+            # 开启circuitbreaker和分组激活 spring.cloud.openfeign.circuitbreaker.enabled
+      circuitbreaker: # 断路器
+        enabled: true # 开启断路器
+#        group: # 默认不用分组
+#          enabled: true #没开分组永远不用分组的配置。精确优先、分组次之(开了分组)、默认最后
+#            #开启circuitbreaker和分组激活
 
 # logging.level + 含有@FeignClient注解的完整带包名的接口名+debug级别
 # feign日志以什么级别监控哪个接口(OpenFeign对外暴露服务功能清单的接口)
@@ -53,3 +59,95 @@ logging:
             PayFeignApi: debug
 
 
+# Resilience4j CircuitBreaker 按照次数：COUNT_BASED 的例子
+#  6次访问中当执行方法的失败率达到50%时CircuitBreaker将进入开启OPEN状态(保险丝跳闸断电)拒绝所有请求。
+#  等待5秒后，CircuitBreaker 将自动从开启OPEN状态过渡到半开HALF_OPEN状态，允许一些请求通过以测试服务是否恢复正常。
+#  如还是异常CircuitBreaker 将重新进入开启OPEN状态；如正常将进入关闭CLOSE闭合状态恢复正常处理请求。
+
+# Resilience4j CircuitBreaker 按照计数器：COUNT_BASED 的例子
+#resilience4j:
+#  circuitbreaker: # 断路器
+#    configs:
+#      default: # default配置
+#        failureRateThreshold: 50 #设置50%的调用失败时打开断路器，超过失败请求百分⽐CircuitBreaker变为OPEN(跳闸)状态。
+#        slidingWindowType: COUNT_BASED # 滑动窗口的类型 按计数器统计
+#        slidingWindowSize: 6 #滑动窗⼝的⼤⼩配置COUNT_BASED表示6个请求，配置TIME_BASED时表示6秒
+#        minimumNumberOfCalls: 6 #断路器计算失败率或慢调用率之前所需的最小样本(每个滑动窗口周期)。如果minimumNumberOfCalls为10，则必须最少记录10个样本，然后才能计算失败率。如果只记录了9次调用，即使所有9次调用都失败，断路器也不会开启。
+#        automaticTransitionFromOpenToHalfOpenEnabled: true # 是否启用自动从开启状态过渡到半开状态，默认值为true。如果启用，CircuitBreaker将自动从开启状态过渡到半开状态，并允许一些请求通过以测试服务是否恢复正常
+#        waitDurationInOpenState: 5s #从OPEN到HALF_OPEN状态需要等待的时间
+#        permittedNumberOfCallsInHalfOpenState: 2 #半开状态允许的最大请求数，默认值为10。在半开状态下，CircuitBreaker将允许最多permittedNumberOfCallsInHalfOpenState个请求通过，如果其中有任何一个请求失败，CircuitBreaker将重新进入开启状态。
+#        recordExceptions: # 只要报这个异常 就进入服务熔断
+#          - java.lang.Exception
+#    instances: # 实例
+#      cloud-payment-service: # 微服务名
+#        baseConfig: default # 指定default配置
+
+# Resilience4j CircuitBreaker 按照时间：TIME_BASED 的例子
+#resilience4j:
+#  timelimiter: # 时间限制器
+#    configs:
+#      default:
+#        timeout-duration: 10s #神坑的位置，timelimiter 默认限制远程1s，超于1s就超时异常，配置了降级，就走降级逻辑
+#  circuitbreaker: # 断路器
+#    configs:
+#      default: # default配置
+#        failureRateThreshold: 50 #设置50%的调用失败时打开断路器，超过失败请求百分⽐CircuitBreaker变为OPEN状态。
+#        slowCallDurationThreshold: 2s #慢调用时间阈值，高于这个阈值的视为慢调用并增加慢调用比例。
+#        slowCallRateThreshold: 30 #慢调用百分比峰值，断路器把调用时间⼤于slowCallDurationThreshold，视为慢调用，当慢调用比例高于阈值，断路器打开，并开启服务降级
+#        slidingWindowType: TIME_BASED # 滑动窗口的类型
+#        slidingWindowSize: 2 #滑动窗口的大小配置，配置TIME_BASED表示2秒
+#        minimumNumberOfCalls: 2 #断路器计算失败率或慢调用率之前所需的最小样本(每个滑动窗口周期)。
+#        permittedNumberOfCallsInHalfOpenState: 2 #半开状态允许的最大请求数，默认值为10。
+#        waitDurationInOpenState: 5s #从OPEN到HALF_OPEN状态需要等待的时间
+#        recordExceptions: # 只要报这个异常 就进入服务熔断
+#          - java.lang.Exception
+#    instances:  # 实例
+#      cloud-payment-service: # 微服务名
+#        baseConfig: default # 指定default配置
+
+####resilience4j bulkhead 舱壁隔离 信号量壁的例子
+#resilience4j:
+#  bulkhead: # 舱壁
+#    configs:
+#      default:
+#        maxConcurrentCalls: 2 # 隔离允许并发线程执行的最大数量 默认25
+#        maxWaitDuration: 1s # 当达到并发调用数量时，新的线程的阻塞时间，我只愿意等待1秒，过时不候进舱壁兜底fallback 默认0s
+#    instances: # 实例
+#      cloud-payment-service: # 微服务名
+#        baseConfig: default # 指定default配置
+#  timelimiter: # 时间限制器
+#    configs:
+#      default:
+#        timeout-duration: 20s # 神坑的位置，timelimiter 默认限制远程1s，超于1s就超时异常，配置了降级，就走降级逻辑
+
+
+####resilience4j bulkhead 舱壁隔离  固定线程池舱壁的例子
+#resilience4j:
+#  timelimiter: # 时间限制器
+#    configs:
+#      default:
+#        timeout-duration: 20s # 神坑的位置，timelimiter 默认限制远程1s，超于1s就超时异常，配置了降级，就走降级逻辑
+#  thread-pool-bulkhead: # 固定线程池舱壁
+#    configs:
+#      default:
+#        core-thread-pool-size: 1 # 核心的
+#        max-thread-pool-size: 1 # 最大的 max-thread-pool-size 包含core-thread-pool-size 所以两个线程就满了
+#        queue-capacity: 1 # 队列 # max-thread-pool-size + ueue-capacity = 2， 1个在max + 1个在队列，第三个来报错
+#    instances:
+#      cloud-payment-service:
+#        baseConfig: default
+  # 由于ThreadPoolBulkhead只对CompletableFuture方法有效，而CompletableFuture使用线程池是新启一个
+  # 所以spring.cloud.openfeign.circuitbreaker.group.enabled 请设置为false 使新启线程和原来主线程脱离
+
+
+####resilience4j ratelimiter 限流的例子
+resilience4j:
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 2 # 在一次刷新周期内，允许执行的最大请求数
+        limitRefreshPeriod: 1s # 限流器每隔limitRefreshPeriod刷新一次，将允许处理的最大请求数量重置为limitForPeriod
+        timeout-duration: 1 # 线程等待权限的默认等待时间
+    instances:
+      cloud-payment-service:
+        baseConfig: default
