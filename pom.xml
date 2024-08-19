@@ -33,6 +33,10 @@
         <spring.boot.test.version>3.1.5</spring.boot.test.version>
         <spring.boot.version>3.2.0</spring.boot.version>
         <spring.cloud.version>2023.0.0</spring.cloud.version>
+        <micrometer-tracing.version>1.2.0</micrometer-tracing.version>
+        <micrometer-observation.version>1.12.0</micrometer-observation.version>
+        <feign-micrometer.version>12.5</feign-micrometer.version>
+        <zipkin-reporter-brave.version>2.17.0</zipkin-reporter-brave.version>
 
         <!--仅为了整合openfeign + alibaba sentinel的案例，降低版本处理下-->
         <!--<spring.boot.version>3.0.9</spring.boot.version>
@@ -48,8 +52,6 @@
         <feign-micrometer.version>12.5</feign-micrometer.version>
         <zipkin-reporter-brave.version>2.17.0</zipkin-reporter-brave.version>-->
     </properties>
-
-    <!-- 欢迎报名尚硅谷学习互联网技术，有学习或发展问题zzyybs@126.com   -->
 
 
     <dependencyManagement>
@@ -141,7 +143,9 @@
                 <scope>test</scope>
             </dependency>
 
-          <!--  &lt;!&ndash;micrometer-tracing-bom导入链路追踪版本中心  1&ndash;&gt;
+
+            <!-- micrometer 链路追踪 1-6 -->
+            <!--micrometer-tracing-bom导入链路追踪版本中心  1 导入链路追踪版本中心，体系化说明-->
             <dependency>
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-tracing-bom</artifactId>
@@ -149,36 +153,36 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            &lt;!&ndash;micrometer-tracing指标追踪  2&ndash;&gt;
+            <!--micrometer-tracing指标追踪  2 指标追踪-->
             <dependency>
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-tracing</artifactId>
                 <version>${micrometer-tracing.version}</version>
             </dependency>
-            &lt;!&ndash;micrometer-tracing-bridge-brave适配zipkin的桥接包 3&ndash;&gt;
+            <!--micrometer-tracing-bridge-brave适配zipkin的桥接包 3 一个Micrometer模块，用于与分布式跟踪工具 Brave 集成，以收集应用程序的分布式跟踪数据。Brave是一个开源的分布式跟踪工具，它可以帮助用户在分布式系统中跟踪请求的流转，它使用一种称为"跟踪上下文"的机制，将请求的跟踪信息存储在请求的头部，然后将请求传递给下一个服务。在整个请求链中，Brave会将每个服务处理请求的时间和其他信息存储到跟踪数据中，以便用户可以了解整个请求的路径和性能。-->
             <dependency>
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-tracing-bridge-brave</artifactId>
                 <version>${micrometer-tracing.version}</version>
             </dependency>
-            &lt;!&ndash;micrometer-observation 4&ndash;&gt;
+            <!--micrometer-observation 4 一个基于度量库 Micrometer的观测模块，用于收集应用程序的度量数据。-->
             <dependency>
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-observation</artifactId>
                 <version>${micrometer-observation.version}</version>
             </dependency>
-            &lt;!&ndash;feign-micrometer 5&ndash;&gt;
+            <!--feign-micrometer 5 一个Feign HTTP客户端的Micrometer模块，用于收集客户端请求的度量数据。-->
             <dependency>
                 <groupId>io.github.openfeign</groupId>
                 <artifactId>feign-micrometer</artifactId>
                 <version>${feign-micrometer.version}</version>
             </dependency>
-            &lt;!&ndash;zipkin-reporter-brave 6&ndash;&gt;
+            <!--zipkin-reporter-brave 6 一个用于将 Brave 跟踪数据报告到Zipkin 跟踪系统的库-->
             <dependency>
                 <groupId>io.zipkin.reporter2</groupId>
                 <artifactId>zipkin-reporter-brave</artifactId>
                 <version>${zipkin-reporter-brave.version}</version>
-            </dependency>-->
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>
