@@ -14,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 //import org.springframework.cloud.client.ServiceInstance;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/9 16:05:26
  * @description RestTemplate配置类
  *  RestTemplate提供了多种便捷访问远程Http服务的方法

@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/19 13:19:48
  * @description Micrometer(Sleuth)链路监控
  */

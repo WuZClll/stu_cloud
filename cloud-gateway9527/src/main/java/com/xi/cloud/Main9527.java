@@ -6,13 +6,13 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
  * @author ZC_Wu 汐
- * @date 2024/8/9 15:27:34
+ * @date 2024/8/22 10:19:53
  * @description
  */
 @SpringBootApplication
-@EnableDiscoveryClient// 开启服务发现 spring cloud consul 服务发现
-public class Main80 {
+@EnableDiscoveryClient //服务注册和发现   spring cloud consul 服务发现
+public class Main9527 {
     public static void main(String[] args) {
-        SpringApplication.run(Main80.class, args);
+        SpringApplication.run(Main9527.class,args);
     }
 }

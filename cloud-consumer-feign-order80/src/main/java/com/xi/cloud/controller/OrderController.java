@@ -14,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/9 16:09:09
  * @description 使用OpenFeign负载均衡
  */

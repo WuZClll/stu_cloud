@@ -8,7 +8,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/9 15:40:46
  * @description
  * 一般而言，调用者不应该获悉服务提供者的entity资源并知道表结构关系，

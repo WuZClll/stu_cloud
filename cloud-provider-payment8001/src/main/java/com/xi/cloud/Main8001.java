@@ -8,7 +8,7 @@ import org.springframework.cloud.context.config.annotation.RefreshScope;
 import tk.mybatis.spring.annotation.MapperScan;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/6 16:08:34
  * @description
  */

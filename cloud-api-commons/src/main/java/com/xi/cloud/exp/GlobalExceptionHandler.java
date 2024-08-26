@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/9 15:14:08
  * @description 全局异常处理器
  */

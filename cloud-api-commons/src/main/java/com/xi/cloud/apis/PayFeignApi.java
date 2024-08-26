@@ -2,7 +2,6 @@ package com.xi.cloud.apis;
 
 import com.xi.cloud.entities.PayDTO;
 import com.xi.cloud.resp.ResultData;
-import lombok.Value;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,11 +9,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
- * @author Wu
+ * @author ZC_Wu 汐
  * @date 2024/8/12 19:56:23
  * @description OpenFeign对外暴露的接口 对外暴露的服务功能清单 参考8001的Controller
  */
-@FeignClient("cloud-payment-service")
+@FeignClient("cloud-gateway")
+//@FeignClient("cloud-payment-service")
 public interface PayFeignApi {
 
     /**
@@ -72,5 +72,20 @@ public interface PayFeignApi {
      */
     @GetMapping(value = "/pay/micrometer/{id}")
     public String myMicrometer(@PathVariable("id") Integer id);
+
+    /**
+     * GateWay进行网关测试案例01
+     * @param id
+     * @return
+     */
+    @GetMapping(value = "/pay/gateway/get/{id}")
+    public ResultData getById(@PathVariable("id") Integer id);
+
+    /**
+     * GateWay进行网关测试案例02
+     * @return
+     */
+    @GetMapping(value = "/pay/gateway/info")
+    public ResultData<String> getGatewayInfo();
 
 }
