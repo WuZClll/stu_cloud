@@ -1,3 +1,8 @@
+---
+author: 汐
+mail: 1302344595@qq.com
+---
+
 [SpringCloud尚硅谷视频传送门->b站](https://www.bilibili.com/video/BV1gW421P7RD?p=1&vd_source=796ed40051b301bfa3a84ba357f4828c)
 
 # 运行环境要求
@@ -22,7 +27,8 @@
 | [cloud-api-commons](##三. cloud-api-commons)                 | 对外暴露通用的组件/api/接口/工具类等                         |
 | [cloudalibaba-provider-payment9001](####基于Nacos的服务提供者) | 基于nacos的微服务提供者(另拷贝虚拟端口映射为9002测试负载均衡) |
 | [cloudalibaba-consumer-nacos-order83](####基于Nacos的服务消费者) | 基于nacos的微服务消费者                                      |
-| cloudalibaba-config-nacos-client3377                         |                                                              |
+| [cloudalibaba-config-nacos-client3377](##Nacos Config 服务配置中心) | nacos作为服务配置中心                                        |
+| [cloudalibaba-sentinel-service8401](##整合Sentinel入门案例)  | 整合sentinel                                                 |
 
 ![image-20240811192237239](./MDImg/image-20240811192237239.png)
 
@@ -1012,13 +1018,9 @@ Feign 提供了日志打印功能，我们可以通过配置来调整日志级�
 
 Hystrix是一个用于处理分布式系统的延迟和容错的开源库，在分布式系统里，许多依赖不可避免的会调用失败，比如超时、异常等，Hystrix能够保证在一个依赖出问题的情况下，不会导致整体服务失败，避免级联故障，以提高分布式系统的弹性。目前已进入维护状态。未来将使用Resilience4j替代。
 
-
-
 ***分布式系统面临的问题：***
 
 复杂分布式体系结构中的应用程序有数十个依赖关系，每个依赖关系在某些时候将不可避免地失败。
-
-
 
 ***服务雪崩：***
 
@@ -3574,6 +3576,424 @@ Prod_Namespace+PROD_GROUP+DatalD(nacos-config-client-prod.yaml)
              namespace: Prod_Namespace
      ```
 
-     
-
    
+
+
+# Ⅹ.SpringCloud Alibaba Sentinel实现熔断与限流
+
+## Sentinel 简介
+
+### Sentinel 介绍
+
+面向分布式、多语言异构化服务架构的流量治理组件
+
+随着微服务的流行，服务和服务之间的稳定性变得越来越重要。Sentinel 是面向分布式、多语言异构化服务架构的流量治理组件，主要以流量为切入点，从流量路由、流量控制、流量整形、熔断降级、系统自适应过载保护、热点流量防护等多个维度来帮助开发者保障微服务的稳定性。
+
+等价对标Spring Cloud Circuit Breaker [Spring Cloud Circuit Breaker官网](https://spring.io/projects/spring-cloud-circuitbreaker)
+
+[home | Sentinel官网](https://sentinelguard.io/zh-cn/)
+
+[introduction | Sentinel (sentinelguard.io)](https://sentinelguard.io/zh-cn/docs/introduction.html)
+
+[主页 · alibaba/Sentinel Wiki (github.com)](https://github.com/alibaba/Sentinel/wiki/主页)
+
+<iframe src="https://github.com/alibaba/Sentinel/wiki/主页" style="width: 100%; height: 400px; border: none;"></iframe>  
+
+### Sentinel 思想设计理念
+
+![image-20240908143310978](./MDImg/image-20240908143310978.png)
+
+### Sentinel的特征
+
+丰富的应用场景：Sentinel 承接了阿里巴巴近 10 年的双十一大促流量的核心场景，例如秒杀（即突发流量控制在系统容量可以承受的范围）、消息削峰填谷、集群流量控制、实时熔断下游不可用应用等。
+
+完备的实时监控：Sentinel 同时提供实时的监控功能。您可以在控制台中看到接入应用的单台机器秒级数据，甚至 500 台以下规模的集群的汇总运行情况。
+
+广泛的开源生态：Sentinel 提供开箱即用的与其它开源框架/库的整合模块，例如与 Spring Cloud、Apache Dubbo、gRPC、Quarkus 的整合。您只需要引入相应的依赖并进行简单的配置即可快速地接入 Sentinel。同时 Sentinel 提供 Java/Go/C++ 等多语言的原生实现。
+
+完善的 SPI 扩展机制：Sentinel 提供简单易用、完善的 SPI 扩展接口。您可以通过实现扩展接口来快速地定制逻辑。例如定制规则管理、适配动态数据源等。
+
+### Sentinel的主要特性
+
+![image-20240908143748903](./MDImg/image-20240908143748903.png)
+
+### Sentinel 怎么用
+
+讲讲什么是缓存穿透？击穿？雪崩？如何解决？[123_redis高级篇之缓存预热雪崩穿透击穿面试题简介_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV13R4y1v7sP?p=123&vd_source=796ed40051b301bfa3a84ba357f4828c)
+
+#### 服务雪崩
+
+多个微服务之间调用的时候，假设微服务A调用微服务B和微服务C，微服务B和微服务C又调用其它的微服务，这就是所谓的“**扇出**”。如果扇出的链路上某个微服务的调用响应时间过长或者不可用，对微服务A的调用就会占用越来越多的系统资源，进而引起系统崩溃，所谓的“雪崩效应”。对于高流量的应用来说，单一的后端依赖可能会导致所有服务器上的所有资源都在几秒钟内饱和。比失败更糟糕的是，这些应用程序还可能导致服务之间的延迟增加，备份队列，线程和其他系统资源紧张，导致整个系统发生更多的级联故障。这些都表示需要对故障和延迟进行隔离和管理，以便单个依赖关系的失败，不能取消整个应用程序或系统。
+
+所以，通常当你发现一个模块下的某个实例失败后，这时候这个模块依然还会接收流量，然后这个有问题的模块还调用了其他的模块，这样就会发生级联故障，或者叫雪崩。**复杂分布式体系结构中的应用程序有数十个依赖关系，每个依赖关系在某些时候将不可避免地失败。**
+
+#### 服务降级
+
+服务降级，说白了就是一种服务托底方案，如果服务无法完成正常的调用流程，就使用默认的托底方案来返回数据。
+
+例如，在商品详情页一般都会展示商品的介绍信息，一旦商品详情页系统出现故障无法调用时，会直接获取缓存中的商品介绍信息返回给前端页面。
+
+#### 服务熔断
+
+在分布式与微服务系统中，如果下游服务因为访问压力过大导致响应很慢或者一直调用失败时，上游服务为了保证系统的整体可用性，会暂时断开与下游服务的调用连接。这种方式就是熔断。**类比保险丝达到最大服务访问后，直接拒绝访问，拉闸限电，然后调用服务降级的方法并返回友好提示。**
+
+服务熔断一般情况下会有三种状态：闭合、开启和半熔断;
+
+闭合状态(保险丝闭合通电OK)：服务一切正常，没有故障时，上游服务调用下游服务时，不会有任何限制。
+
+开启状态(保险丝断开通电Error)：上游服务不再调用下游服务的接口，会直接返回上游服务中预定的方法。
+
+半熔断状态：处于开启状态时，上游服务会根据一定的规则，尝试恢复对下游服务的调用。此时，上游服务会以有限的流量来调用下游服务，同时，会监控调用的成功率。如果成功率达到预期，则进入关闭状态。如果未达到预期，会重新进入开启状态。
+
+#### 服务限流
+
+服务限流就是限制进入系统的流量，以防止进入系统的流量过大而压垮系统。其主要的作用就是保护服务节点或者集群后面的数据节点，防止瞬时流量过大使服务和数据崩溃（如前端缓存大量实效），造成不可用；还可用于平滑请求，类似秒杀高并发等操作，严禁一窝蜂的过来拥挤，大家排队，一秒钟N个，有序进行。
+
+限流算法有两种，一种就是简单的请求总量计数，一种就是时间窗口限流（一般为1s），如令牌桶算法和漏牌桶算法就是时间窗口的限流算法。
+
+#### 服务隔离
+
+有点类似于系统的垂直拆分，就按照一定的规则将系统划分成多个服务模块，并且每个服务模块之间是互相独立的，不会存在强依赖的关系。如果某个拆分后的服务发生故障后，能够将故障产生的影响限制在某个具体的服务内，不会向其他服务扩散，自然也就不会对整体服务产生致命的影响。
+
+互联网行业常用的服务隔离方式有：**线程池隔离和信号量隔离**。
+
+#### 服务超时
+
+整个系统采用分布式和微服务架构后，系统被拆分成一个个小服务，就会存在服务与服务之间互相调用的现象，从而形成一个个调用链。
+
+形成调用链关系的两个服务中，主动调用其他服务接口的服务处于调用链的上游，提供接口供其他服务调用的服务处于调用链的下游。服务超时就是在上游服务调用下游服务时，设置一个最大响应时间，如果超过这个最大响应时间下游服务还未返回结果，则断开上游服务与下游服务之间的请求连接，释放资源。
+
+## Sentinel 安装
+
+Sentinel 分为两部分
+
+- 核心库(java客户端)：不依赖任何框架/库，能够运行于所有java运行时环境，同时对 Dubbo/Spring Cloud 等框架也有较好的支持
+- 控制台(Dashboard): 基于 SpringBoot 开发，打包后可以直接运行，不需要额外的 Tomcat 等应用容器
+
+后台默认8719
+前台默认8080
+
+安装：[Releases · alibaba/Sentinel (github.com)](https://github.com/alibaba/Sentinel/releases)
+
+运行前提
+
+- java环境OK
+- 8080端口不能被占用
+
+**运行命令**：`java -jar sentinel-dashboard-1.8.6.jar`
+
+访问sentinel管理页面
+
+- http://localhost:8080/#/login
+- 用户名密码皆为`sentinel`
+
+## 整合Sentinel入门案例
+
+第一步：启动Nacos8848
+
+- 启动命令
+  `startup.cmd -m standalone`
+- 访问nacos页面
+  http://localhost:8848/nacos/|
+  账密都是`nacos`
+
+第二步：启动Sentinel8080
+
+1. 运行命令
+
+   `java -jar sentinel-dashboard-1.8.6.jar`
+
+2. 访问sentinel管理页面
+   http://localhost:8080/#/login
+   账密都是`sentinel`
+
+第三步：新建微服务8401
+
+1. 新建模块`cloudalibaba-sentinel-service8401`
+
+2. pom
+   ```html
+   <!--SpringCloud alibaba sentinel -->
+   <dependency>
+       <groupId>com.alibaba.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+   </dependency>
+   
+   <!--nacos-discovery-->
+   <dependency>
+       <groupId>com.alibaba.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+   </dependency>
+   ```
+
+3. yml
+   ```yaml
+   server:
+     port: 8401
+   
+   spring:
+     application:
+       name: cloudalibaba-sentinel-service
+     cloud:
+       nacos:
+         discovery:
+           server-addr: localhost:8848         #Nacos服务注册中心地址
+       sentinel:
+         transport:
+           dashboard: localhost:8080 #配置Sentinel dashboard控制台服务地址
+           port: 8719 #默认8719端口，假如被占用会自动从8719开始依次+1扫描,直至找到未被占用的端口
+   ```
+
+4. 主启动
+   ```java
+   @EnableDiscoveryClient
+   @SpringBootApplication
+   public class Main8401 {
+       public static void main(String[] args) {
+           SpringApplication.run(Main8401.class,args);
+       }
+   }
+   ```
+
+5. 业务类
+   ```java
+   @RestController
+   public class FlowLimitController {
+   
+       @GetMapping("/testA")
+       public String testA() {
+           return "------testA";
+       }
+   
+       @GetMapping("/testB")
+       public String testB() {
+           return "------testB";
+       }
+   }
+   ```
+
+第四步：启动8401微服务后查看sentienl控制台
+
+1. 启动8401微服务
+2. 查看sentinel控制台
+   - 发现控制台空空如也
+   - Sentinel采用懒加载
+     想使用Sentinel对某个接口进行限流和降级等操作，一定要**先访问下接口，使Sentinel检测出相应的接口**
+     http://localhost:8401/testA
+     http://localhost:8401/testB
+3. 访问接口
+   访问接口http://localhost:8401/testA 或 http://localhost:8401/testB 后再次查看控制台
+   ![image-20240909210735202](./MDImg/image-20240909210735202.png)
+
+## 流控规则
+
+### 流控规则基本介绍
+
+![image-20240910173112502](./MDImg/image-20240910173112502.png)
+
+Sentinel能够对流量进行控制，主要是监控应用的QPS流量或者并发线程数等指标，如果达到指定的阈值时，就会被流量进行控制，以避免服务被瞬时的高并发流量击垮，保证服务的高可靠性。参数见下方：
+
+![image-20240910173127649](./MDImg/image-20240910173127649.png)
+
+- 资源名：资源的唯一名称，默认就是请求的接口路径，可以自行修改，但是要保证唯一。
+- 针对来源：具体针对某个微服务进行限流，默认值为default，表示不区分来源，全部限流。
+- 阈值类型：QPS表示通过QPS进行限流，并发线程数表示通过并发线程数限流。
+- 单机阈值：与阈值类型组合使用。如果阈值类型选择的是QPS，表示当调用接口的QPS达到阈值时，进行限流操作。如果阈值类型选择的是并发线程数，则表示当调用接口的并发线程数达到阈值时，进行限流操作。
+- 是否集群：选中则表示集群环境，不选中则表示非集群环境。
+
+###  流控模式
+
+![image-20240910174727136](./MDImg/image-20240910174727136.png)
+
+#### 1. 直接
+
+直接：默认的流控模式，当接口达到限流条件时，直接开启限流功能。
+
+1. 配置及说明
+   表示1秒钟内查询1次就是OK，若超过次数1，就直接-快速失败，报默认错
+   ![image-20240910174835842](./MDImg/image-20240910174835842.png)
+2. 测试
+   快速点击访问http://localhost:8401/testA 单机阈值1表示1s中最多可以访问一次
+   结果：Blocked by Sentinel (flow limiting)
+
+思考：直接调用默认报错信息，技术方面OK，but是否应该有我们自己的后续处理？类似有个`fallback`的兜底方法？
+
+#### 2. 关联
+
+关联：
+
+- 当关联的资源达到阈值时，就限流自己
+- 当与A关联的资源B达到阀值后，就限流A自己
+- B惹事，A挂了，即张3感冒，李4吃药
+
+1. 配置及说明
+   当关联资源/testB的qps阀值超过1时，就限流/testA的Rest访问地址，**当关联资源到阈值后限制配置好的资源名，B惹事，A挂了**
+   ![image-20240910175827401](./MDImg/image-20240910175827401.png)
+
+2. 使用Jmeter?模拟并发密集访问testB
+
+   - Jmeter压力测试工具下载地址[Apache JMeter - Download Apache JMeter](https://jmeter.apache.org/download_jmeter.cgi)
+
+   - run
+     ![image-20240910182329445](./MDImg/image-20240910182329445.png)
+
+     ![image-20240910182338839](./MDImg/image-20240910182338839.png)
+
+   - 大批量线程高并发访问B,导致A失效了
+
+3. 运行Ahttp://localhost:8401/testA后发现A挂了
+   结果`Blocked by Sentinel (flow limiting)`
+
+#### 3. 链路
+
+来自不同链路的请求对同一个目标访问时，实施针对性的不同限流措施，
+比如C请求来访问(service)就限流，D请求来访问(service)就是OK
+
+1. 修改微服务8401
+   yml:
+
+   ```yaml
+   server:
+     port: 8401
+   
+   spring:
+     application:
+       name: cloudalibaba-sentinel-service #8401微服务提供者后续将会被纳入阿里巴巴sentinel监管
+     cloud:
+       nacos:
+         discovery:
+           server-addr: localhost:8848         #Nacos服务注册中心地址
+       sentinel:
+         transport:
+           dashboard: localhost:8080 #配置Sentinel dashboard控制台服务地址
+           	port: 8719 #默认8719端口，假如被占用会自动从8719开始依次+1扫描,直至找到未被占用的端口
+           web-context-unify: false # controller层的方法对service层调用不认为是同一个根链路
+   ```
+
+2. 业务类
+   FlowLimitService：`@SentinelResource(value = "common")`
+
+   ```java
+   @Service
+   public class FlowLimitService {
+       @SentinelResource(value = "common")
+       public void common() {
+           System.out.println("------FlowLimitService come in");
+       }
+   }
+   ```
+
+   flowLimitService新增内容：
+
+   ```java
+   /**
+     * 流控-链路演示demo
+     * C和D两个请求都访问flowLimitService.common()方法，阈值到达后对C限流，对D不管
+     */
+   @Resource
+   private FlowLimitService flowLimitService;
+   
+   @GetMapping("/testC")
+   public String testC() {
+       flowLimitService.common();
+       return "------testC";
+   }
+   @GetMapping("/testD")
+   public String testD() {
+       flowLimitService.common();
+       return "------testD";
+   }
+   ```
+
+3. 配置sentinel
+   说明：C和D两个请求都访问`flowLimitService.common()`方法，对C限流，对D不管
+   ![image-20240910191244443](./MDImg/image-20240910191244443.png)
+
+4. 测试 快速多次点击
+   http://localhost:8401/testC err 超过一秒钟一次后，就发生限流
+   ![image-20240910191518049](./MDImg/image-20240910191518049.png)
+   http://localhost:8401/testD 无论怎么访问都是OK
+
+### 流控效果
+
+![image-20240910191716701](./MDImg/image-20240910191716701.png)
+
+#### 1.快速失败
+
+直接一快速失败
+
+默认的流控处理，直接失败，抛出异常`Blocked by Sentinel（flow limiting）`
+
+#### 2. Warm Up
+
+##### 2.1 预热Warm Up说明
+
+[限流 冷启动 ](https://github.com/alibaba/Sentinel/wiki/限流---冷启动)：**当流量突然增大的时候，我们常常会希望系统从空闲状态到繁忙状态的切换的时间长一些**。即如果系统在此之前长期处于空闲的状态，我们希望处理请求的数量是缓步的增多，经过预期的时间以后，到达系统处理请求个数的最大值。Warm Up（冷启动，预热）模式就是为了实现这个目的的。
+
+<iframe src="https://github.com/alibaba/Sentinel/wiki/限流---冷启动" style="width: 100%; height: 400px; border: none;"></iframe>
+
+**公式**：阈值除以冷却因子`coldFactor`(默认值为3)，经过预热时长后才会达到阈值
+
+![img](./MDImg/warmup.gif)
+
+默认 `coldFactor` 为 3，即请求 QPS 从 `threshold / 3` 开始，经预热时长逐渐升至设定的 QPS 阈值。
+
+源码:
+
+![image-20240910193325322](./MDImg/image-20240910193325322.png)
+
+##### 2.2 Warm Up配置及测试
+
+**默认 coldFactor 为 3，即请求QPS从($threshold / 3$) 开始，经多少预热时长才逐渐升至设定的 QPS 阈值。**
+
+**案例：**
+
+- 单机阈值为`10`，预热时长设置5秒。
+- 系统初始化的阈值为10 / 3 约等于3,即单机阈值刚开始为3(我们人工设定单机阈值是10，sentinel计算后QPS判定为3开始)；
+- 然后过了`5`秒后阀值才慢慢升高恢复到设置的单机阈值10，也就是说5秒钟内QPS为3，过了保护期5秒后QPS为10
+
+1. 设置sentinel
+   ![image-20240910193623280](./MDImg/image-20240910193623280.png)
+2. 测试
+   - 进入http://localhost:8401/testB多次快速刷新
+   - 发现刚开始多次抛出异常`Blocked by Sentinel（flow limiting）`，5s后不会出现异常
+   - 原因：设置阈值为$10$，使用WarmUp预热，刚开始阈值为$10/3=3$，隔热时长5s后阈值变为$10$，仅凭手动很难达到10次/s，因此不会抛出异常
+
+> 应用场景
+> 如：秒杀系统在开启的瞬间，会有很多流量上来，很有可能把系统打死，预热方式就是把为了保护系统，可慢慢的把流量放进来，慢慢的把阈值增长到设置的阈值。
+
+#### 3. 排队等待
+
+![image-20240910194934849](./MDImg/image-20240910194934849.png)
+
+![img](./MDImg/limitflow.gif)
+
+1. controller新增
+   ```java
+   @GetMapping("/testE")
+   public String testE() {
+       System.out.println(System.currentTimeMillis()+"      testE,排队等待");
+       return "------testE";
+   }
+   ```
+
+2. 配置sentinel
+   按照单机阈值，一秒钟通过一个请求，10秒后的请求作为超时处理，放弃
+   ![image-20240910195441883](./MDImg/image-20240910195441883.png)
+
+3. 测试
+   ![image-20240910195426467](./MDImg/image-20240910195426467.png)
+
+   ![image-20240910195507201](./MDImg/image-20240910195507201.png)
+
+### 流控效果V2-并发线程数
+
+![image-20240910200554875](./MDImg/image-20240910200554875.png)
+
+1. 配置sentinel
+   ![image-20240910200709834](./MDImg/image-20240910200709834.png)
+2. 测试
+   - Jmeter模拟多个线程并发+循环请求
+     ![image-20240910200741941](./MDImg/image-20240910200741941.png)
+   - 模拟过程中同时手动测试http://localhost:8401/testB
+     Jmeter给它打满了，大部分我们自己访问都不好使，偶尔Jmeter线程切换系统判定没访问，我们自己的点击才有点机会
