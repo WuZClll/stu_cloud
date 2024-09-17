@@ -3871,7 +3871,7 @@ Sentinel能够对流量进行控制，主要是监控应用的QPS流量或者并
    ```
 
 2. 业务类
-   FlowLimitService：`@SentinelResource(value = "common")`
+   FlowLimitService：`@SentinelResource(value = "common")`[@SentinelResource详解](##@SentinelResource)
 
    ```java
    @Service
@@ -3997,3 +3997,583 @@ Sentinel能够对流量进行控制，主要是监控应用的QPS流量或者并
      ![image-20240910200741941](./MDImg/image-20240910200741941.png)
    - 模拟过程中同时手动测试http://localhost:8401/testB
      Jmeter给它打满了，大部分我们自己访问都不好使，偶尔Jmeter线程切换系统判定没访问，我们自己的点击才有点机会
+
+## 熔断规则
+
+### 熔断规则基本介绍
+
+[熔断降级 · alibaba/Sentinel Wiki (github.com)](https://github.com/alibaba/Sentinel/wiki/熔断降级)
+
+<iframe src="https://github.com/alibaba/Sentinel/wiki/%E7%86%94%E6%96%AD%E9%99%8D%E7%BA%A7" style="width: 100%; height: 400px; border: none;"></iframe>  
+
+Sentinel 熔断降级会在调用链路中某个资源出现不稳定状态时（例如调用超时或异常比例升高），对这个资源的调用进行限制，
+
+让请求快速失败，避免影响到其它的资源而导致级联错误。当资源被降级后，在接下来的降级时间窗口之内，对该资源的调用都自动熔断（默认行为是抛出 DegradeException）。
+
+> **注意**：本文档针对 Sentinel 1.8.0 及以上版本。1.8.0 版本对熔断降级特性进行了全新的改进升级，请使用最新版本以更好地利用熔断降级的能力。
+
+### 熔断策略
+
+![image-20240915110651902](./MDImg/image-20240915110651902.png)
+
+**Sentinel 提供以下几种熔断策略：**
+
+- 慢调用比例 (`SLOW_REQUEST_RATIO`)：选择以慢调用比例作为阈值，需要设置允许的慢调用 RT（即最大的响应时间），请求的响应时间大于该值则统计为慢调用。当单位统计时长（`statIntervalMs`）内请求数目大于设置的最小请求数目，并且慢调用的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求响应时间小于设置的慢调用 RT 则结束熔断**，若大于设置的慢调用 RT 则会再次被熔断。
+- 异常比例 (`ERROR_RATIO`)：当单位统计时长（`statIntervalMs`）内请求数目大于设置的最小请求数目，并且异常的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求成功完成（没有错误）则结束熔断**，否则会再次被熔断。异常比率的阈值范围是 `[0.0, 1.0]`，代表 0% - 100%。
+- 异常数 (`ERROR_COUNT`)：当单位统计时长内的异常数目超过阈值之后会自动进行熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求成功完成（没有错误）则结束熔断**，否则会再次被熔断。
+
+#### 1. 慢调用比例
+
+##### 慢调用比例介绍
+
+慢调用比例 (`SLOW_REQUEST_RATIO`)：选择以慢调用比例作为阈值，需要设置允许的慢调用 RT（即最大的响应时间），**请求的响应时间大于该值则统计为慢调用**。当**单位统计时长（`statIntervalMs`）内请求数目大于设置的最小请求数目，并且慢调用的比例大于阈值**，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求响应时间小于设置的慢调用 RT 则结束熔断**，若大于设置的慢调用 RT 则会再次被熔断。
+
+![image-20240915111821256](./MDImg/image-20240915111821256.png)
+
+![image-20240915111807214](./MDImg/image-20240915111807214.png)
+
+**进入熔断状态依据：**
+进入熔断状态判断依据：在统计时长内，$实际请求数目＞设定的最小请求数$  且   $实际慢调用比例＞比例阈值$ ，进入熔断状态。
+
+**名词解释：**
+
+1. 调用：一个请求发送到服务器，服务器给与响应，一个响应就是一个调用。
+2. 最大RT：即最大的响应时间，指系统对请求作出响应的业务处理时间。
+3. 慢调用：$处理业务逻辑的实际时间>设置的最大RT时间$，这个调用叫做慢调用。
+4. 慢调用比例：在所以调用中，$慢调用占有实际的比例＝慢调用次数\div总调用次数$
+5. 比例阈值：自己设定的 ， $比例阈值＝慢调用次数\div调用次数$
+6. 统计时长：时间的判断依据
+7. 最小请求数：设置的调用最小请求数，上图比如1秒钟打进来10个线程（大于我们配置的5个了）调用被触发
+
+**断路器状态：**
+
+1. 熔断状态(保险丝跳闸断电，不可访问)：在接下来的熔断时长内请求会自动被熔断
+2. 探测恢复状态(探路先锋)：熔断时长结束后进入探测恢复状态(看看服务是否起来了)
+3. 结束熔断(保险丝闭合恢复，可以访问)：在探测恢复状态，如果接下来的一个请求响应时间小于设置的慢调用 RT，则结束熔断，否则继续熔断。
+
+##### 满调用比例案例
+
+1. 代码
+   ```java
+   /**
+     * 新增熔断规则-慢调用比例
+     * 10个线程，在一秒的时间内发送完。又因为服务器响应时长设置：暂停1秒，所以响应一个请求的时长都大于1秒综上符合熔断条件，所以当线程开启1秒后，进入熔断状态
+     * @return
+     */
+   @GetMapping("/testF")
+   public String testF() {
+       //暂停几秒钟线程
+       try {
+           TimeUnit.SECONDS.sleep(1);
+       } catch (InterruptedException e) {
+           e.printStackTrace();
+       }
+       System.out.println("----测试:新增熔断规则-慢调用比例 ");
+       return "------testF 新增熔断规则-慢调用比例";
+   }
+   ```
+
+2. 配置Sentinel
+   进入熔断状态判断依据：在统计时长内，$实际请求数目＞设定的最小请求数$  且   $实际慢调用比例＞比例阈值$ ，进入熔断状态。 
+
+   ![image-20240915113104358](./MDImg/image-20240915113104358.png)
+
+3. jmeter压测
+   ![image-20240915113426917](./MDImg/image-20240915113426917.png)
+
+4. 结论
+   按照上述配置，熔断触发：
+
+   - **多次循环，一秒钟打进来10个线程(大于5个了)调用/testF，我们希望200毫秒处理完一次调用，和谐系统；**
+   - **假如在统计时长内，$实际请求数目＞最小请求数$且$慢调用比例＞比例阈值$ ，断路器打开(保险丝跳闸)微服务不可用(Blocked by Sentinel (flow limiting))，进入熔断状态5秒；**后续我停止jmeter，没有这么大的访问量了，单独用浏览器访问rest地址，断路器关闭(保险丝恢复，合上闸口)，
+   - 微服务恢复OK
+
+#### 2. 异常比例
+
+##### 异常比例介绍
+
+异常比例 (`ERROR_RATIO`)：当单位统计时长（`statIntervalMs`）内请求数目大于设置的最小请求数目，并且异常的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求成功完成（没有错误）则结束熔断，否则会再次被熔断**。异常比率的阈值范围是 `[0.0, 1.0]`，代表 0% - 100%。
+
+![image-20240915131257197](./MDImg/image-20240915131257197.png)
+
+![image-20240915131244889](./MDImg/image-20240915131244889.png)
+
+##### 异常比例案例
+
+1. 代码
+   ```java
+   /**
+     * 新增熔断规则-异常比例
+     * @return
+     */
+   @GetMapping("/testG")
+   public String testG() {
+       System.out.println("----测试:新增熔断规则-异常比例 ");
+       int age = 10/0;
+       return "------testG,新增熔断规则-异常比例 ";
+   }
+   ```
+
+2. 配置Sentinel
+   ![image-20240915132804078](./MDImg/image-20240915132804078.png)
+
+   - 不配置Sentinel，对于int age=10/0，调一次错一次报错error，页面报【Whitelabel Error Page】或全局异常
+   - 配置Sentinel，对于int age=10/0，如符合如下异常比例启动熔断，页面报【Blocked by Sentinel (flow limiting)】
+
+3. jmeter压测
+   ![image-20240915133037114](./MDImg/image-20240915133037114.png)
+
+4. 结论
+
+   - 按照上述配置，单独访问一次，必然来一次报错一次(int age = 10/0)达到100%，调一次错一次报错【Whitelabel Error Page】或全局异常；
+   - 开启jmeter后，直接高并发发送请求，多次调用达到我们的配置条件了。
+     断路器开启(保险丝跳闸)，微服务不可用了，不再报错error而是服务熔断+服务降级，出提示【Blocked by Sentinel (flow limiting)】。
+
+#### 3. 异常数
+
+##### 异常数介绍
+
+异常数 (`ERROR_COUNT`)：当单位统计时长内的异常数目超过阈值之后会自动进行熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），**若接下来的一个请求成功完成（没有错误）则结束熔断**，否则会再次被熔断。
+
+![image-20240915134406092](./MDImg/image-20240915134406092.png)
+
+![image-20240915134412742](./MDImg/image-20240915134412742.png)
+
+##### 异常数案例
+
+1. 代码
+   ```java
+   /**
+     * 新增熔断规则-异常数
+     * @return
+     */
+   @GetMapping("/testH")
+   public String testH() {
+       System.out.println("----测试:新增熔断规则-异常数 ");
+       int i = ((int) (10 * Math.random())) % 2;// i 为0或1
+       int age = 10/i;
+       int j = ((int) (10 * Math.random())) % 2;// i 为0或1
+       int age1 = 10/i;
+       int k = ((int) (10 * Math.random())) % 2;// i 为0或1
+       int age2 = 10/i;
+       return "------testH,新增熔断规则-异常数 ";
+   }
+   ```
+
+2. sentinel配置
+   ![image-20240915134530913](./MDImg/image-20240915134530913.png)
+
+3. jmeter压测
+
+    ![image-20240915134558916](./MDImg/image-20240915134558916.png)
+
+4. 结论
+
+   - http://localhost:8401/testH，第一次访问绝对报错，因为除数不能为零，我们看到error窗口
+   - 开启jmeter后，直接高并发干爆他发送请求，多次调用达到我们的配置条件了。
+   - 但是jmeter开工，上述配置表示，在1秒钟内最少请求2次，当异常数大于1时，会触发熔断操作断路器开启(保险丝跳闸)，微服务不可用了，熔断的时长为5秒，不再报错error而是服务降级了出提示【Blocked by Sentinel (flow limiting) 】
+
+## @SentinelResource
+
+[@SentinelResource初体验——流控模式-链路的实例](####3. 链路)
+
+### @SentinelResource注解说明
+
+SentinelResource是一个流量防卫防护组件注解，用于指定防护资源，对配置的资源进行流量控制、熔断降级等功能。
+
+- @SentinelResource注解说明
+  ```java
+  @Target({ElementType.METHOD, ElementType.TYPE})
+  @Retention(RetentionPolicy.RUNTIME)
+  @Inherited
+  public @interface SentinelResource {
+  
+      //资源名称 告诉sentinel哪些资源需要哨兵去守护
+      String value() default "";
+  
+      //entry类型，标记流量的方向，取值IN/OUT，默认是OUT
+      EntryType entryType() default EntryType.OUT;
+      //资源分类
+      int resourceType() default 0;
+  
+      //处理BlockException的函数名称,函数要求：
+      //1. 必须是 public
+      //2.返回类型 参数与原方法一致
+      //3. 默认需和原方法在同一个类中。若希望使用其他类的函数，可配置blockHandlerClass ，并指定blockHandlerClass里面的方法。
+      String blockHandler() default "";
+  
+      //存放blockHandler的类,对应的处理函数必须static修饰。
+      Class<?>[] blockHandlerClass() default {};
+  
+      //用于在抛出异常的时候提供fallback处理逻辑。 fallback函数可以针对所
+      //有类型的异常（除了 exceptionsToIgnore 里面排除掉的异常类型）进行处理。函数要求：
+      //1. 返回类型与原方法一致
+      //2. 参数类型需要和原方法相匹配
+      //3. 默认需和原方法在同一个类中。若希望使用其他类的函数，可配置fallbackClass ，并指定fallbackClass里面的方法。
+      String fallback() default "";
+  
+      //存放fallback的类。对应的处理函数必须static修饰。
+      String defaultFallback() default "";
+  
+      //用于通用的 fallback 逻辑。默认fallback函数可以针对所有类型的异常进
+      //行处理。若同时配置了 fallback 和 defaultFallback，以fallback为准。函数要求：
+      //1. 返回类型与原方法一致
+      //2. 方法参数列表为空，或者有一个 Throwable 类型的参数。
+      //3. 默认需要和原方法在同一个类中。若希望使用其他类的函数，可配置fallbackClass ，并指定 fallbackClass 里面的方法。
+      Class<?>[] fallbackClass() default {};
+  
+      //需要trace(跟踪)的异常
+      Class<? extends Throwable>[] exceptionsToTrace() default {Throwable.class};
+  
+      //指定排除忽略掉哪些异常。排除的异常不会计入异常统计，也不会进入fallback逻辑，而是原样抛出。
+      Class<? extends Throwable>[] exceptionsToIgnore() default {};
+  }
+  ```
+
+### @SentinelResource案例
+
+> 案例开始前准备
+>
+> 1. 启动nacos`startup.cmd -m standalone`
+> 2. 启动sentinel`java -jar xxx.jar`
+
+#### 1. 按照rest地址限流+默认限流返回
+
+通过访问的rest地址来限流，会返回Sentinel自带默认的限流处理信息
+
+1. 业务类  RateLimitController
+   ```java
+   @RestController
+   @Slf4j
+   public class RateLimitController {
+       @GetMapping("/rateLimit/byUrl")
+       public String byUrl() {
+           return "按rest地址限流测试OK";
+       }
+   }
+   ```
+
+2. http://localhost:8401/rateLimit/byUrl
+
+3. sentinel配置
+   ![image-20240917134149237](./MDImg/image-20240917134149237.png)
+
+    ![image-20240917134204522](./MDImg/image-20240917134204522.png)
+
+4. 测试
+   快速点击http://localhost:8401/rateLimit/byUrl
+   结果：会返回Sentinel自带的限流处理结果，默认 
+   ![image-20240917134321037](./MDImg/image-20240917134321037.png)
+
+#### 2. 按SentinelResource资源名称限流+自定义限流返回
+
+不想用默认的限流提示(Blocked by Sentinel(flow limiting),想返回自定义限流的提示
+
+- 业务类  RateLimitController
+  ```java
+  /**
+    * 按资源名称SentinelResource限流测试
+    * @return
+    */
+  @GetMapping("/rateLimit/byResource")
+  // byResourceSentinelResource资源正常走这个方法，异常（违背了sentinel中的配置）走handlerBlockHandler()
+     
+  @SentinelResource(value = "byResourceSentinelResource",blockHandler = "handlerBlockHandler")
+  public String byResource() {
+      return "按资源名称SentinelResource限流测试OK";
+  }
+  public String handlerBlockHandler(BlockException exception) {
+      return "服务不可用触发@SentinelResource启动"+"\t"+"o(╥﹏╥)o";
+  }
+  ```
+
+- sentinel配置
+  ![image-20240917135923736](./MDImg/image-20240917135923736.png)
+
+- 测试
+  1秒钟点击1下，OK
+  超过上述，疯狂点击，返回了**自定义的限流处理信息**，限流发生
+  ![image-20240917140043668](./MDImg/image-20240917140043668.png)
+
+#### 3. 按SentinelResource资源名称限流+自定义限流返回+服务降级处理
+
+按SentinelResourcel配置，**点击超过限流配置返回自定义限流提示**+**程序异常返回fallback服务降级**
+
+- 业务类  RateLimitController
+  ```java
+  /**
+    * 按SentinelResourcel配置，点击超过限流配置返回自定义限流提示+程序异常返回fallback服务降级
+    * @param p1
+    * @return
+    */
+  @GetMapping("/rateLimit/doAction/{p1}")
+  // value: 资源名  blockHandler：自定义限流时方法 fallback：兜底的回调方法
+  @SentinelResource(value = "doActionSentinelResource",
+                    blockHandler = "doActionBlockHandler", fallback = "doActionFallback")
+  public String doAction(@PathVariable("p1") Integer p1) {
+      if (p1 == 0){
+          throw new RuntimeException("p1等于零直接异常");
+      }
+      return "doAction";
+  }
+  public String doActionBlockHandler(@PathVariable("p1") Integer p1,BlockException e){
+      log.error("sentinel配置自定义限流了:{}", e);
+      return "sentinel被限流，配置自定义限流了";
+  }
+  public String doActionFallback(@PathVariable("p1") Integer p1,Throwable e){
+      log.error("程序逻辑异常了:{}", e);
+      return "程序逻辑异常了"+"\t"+e.getMessage();
+  }
+  ```
+
+- sentinel配置
+  ![image-20240917141041162](./MDImg/image-20240917141041162.png)
+  表示1秒钟内查询次数大于1，就跑到我们自定义的处流，限流
+
+- 测试
+
+  - http://localhost:8401/rateLimit/doAction/1
+    1秒钟点击1下，**OK**
+    超过上述，疯狂点击，**返回了自己定义的限流处理信息**，限流发生，配合了sentinel设定的规则
+  - http://localhost:8401/rateLimit/doAction/0
+    p1参数为零，异常发生，**返回了自己定义的服务降级处理**
+
+小结：
+
+- blockHandler,主要针对sentinel**配置**后出现的**违规**情况处理
+- fallback,程序**异常**了JVM抛出的**异常服务降级**
+- 两者可以同时共存
+
+## 热点规则
+
+### 热点规则介绍
+
+[热点参数限流 · alibaba/Sentinel Wiki (github.com)](https://github.com/alibaba/Sentinel/wiki/热点参数限流)
+
+热点即经常访问的数据，很多时候我们希望统计或者限制某个热点数据中访问频次最高的TopN数据，并对其访问进行限流或者其它操作
+
+<img src="./MDImg/image-20240917143812221.png" alt="image-20240917143812221" style="zoom:67%;" />
+
+<iframe src="https://github.com/alibaba/Sentinel/wiki/%E7%83%AD%E7%82%B9%E5%8F%82%E6%95%B0%E9%99%90%E6%B5%81" style="width: 100%; height: 400px; border: none;"></iframe>  
+
+![Snipaste_2024-09-17_14-41-38](./MDImg/Snipaste_2024-09-17_14-41-38.png)
+
+### 热点规则案例
+
+1. 业务 RateLimitController
+
+   ```java
+   /**
+     * 热点参数限流
+     * @param p1
+     * @param p2
+     * @return
+     */
+   @GetMapping("/testHotKey")
+   @SentinelResource(value = "testHotKey",blockHandler = "dealHandler_testHotKey")
+   public String testHotKey(@RequestParam(value = "p1",required = false) String p1,
+                            @RequestParam(value = "p2",required = false) String p2) {
+       return "------testHotKey";
+   }
+   public String dealHandler_testHotKey(String p1,String p2,BlockException exception) {
+       return "-----dealHandler_testHotKey 触发限流";
+   }
+   ```
+
+2. 配置
+   ![image-20240917144813027](./MDImg/image-20240917144813027.png)
+   方法testHotKey里面第一个参数P1有值只要QPS超过每秒1次，马上降级处理
+
+   > 限流模式只支持QPS模式，固定写死了。（这才叫热点）
+   >
+   > @SentinelResource注解的方法**参数索引**，0代表第一个参数，1代表第二个参数，以此类推
+   >
+   > 单机阀值以及统计窗口时长表示在此窗口时间超过阀值就限流。
+   >
+   > **上面的抓图就是第一个参数有值的话，1秒的QPS为1，超过就限流，限流后调用**dealHandler_testHotKey支持方法。
+
+3. 测试
+
+   - err: http://localhost:8401/testHotKey?p1=abc含有参数P1,当每秒访问的频率超过1次时，会触发Sentinel的限流操作
+   - err: http://localhost:8401/testHotKey?p1=abc&p2=33含有参数P1,当每秒访问的频率超过次时，会触发Sentinel的限流操作
+   - success： http://localhost:8401/testHotKey?p2=abc没有热点参数P1,不断访问则不会触发限流操作
+   - success：http://localhost:8401/testHotKey没有热点参数P1,不断访问则不会触发限流操作
+
+### 参数例外项
+
+**上述案例**演示了第一个参数p1,当QPS超过1秒1次点击后马上被限流
+
+特例情况
+
+- 普通正常限流
+  含有P1参数，超过1秒钟一个后，达到阈值1后马上被限流
+- 例外特殊限流
+  我们期望P1参数当它是某个特殊值时，到达某个约定值后【普通正常限流】规则突然例外、失效了，它的限流值和平时不一样
+  假如当p1的值等于5时，它的阈值可以达到200或其它值
+
+1. 配置sentinel
+    <img src="./MDImg/image-20240917150607359.png" alt="image-20240917150607359" style="zoom:67%;" />
+
+    <img src="./MDImg/image-20240917150618373.png" alt="image-20240917150618373" style="zoom:67%;" />
+
+2. 测试
+
+   - http://localhost:8401/testHotKey?p1=5 快速点击success
+     超过1秒钟一个后，达到阈值200后才会被限流当p1等于5的时候，阈值变为200
+   - http://localhost:8401/testHotKey?p1=1 快速点击被限流
+     超过1秒钟一个后，达到阈值后马上被限流当p1不等于5的时候，阈值就是平常的【普通正常限流】规则
+
+## 授权规则
+
+### 授权规则介绍
+
+在某些场景下，需要根据调用接口的来源判断是否允许执行本次请求。此时就可以使用Sentinel提供的授权规则来实现，Sentinel的授权规则能够根据请求的来源判断是否允许本次请求通过。
+
+在Sentinel的授权规则中，**提供了 白名单与黑名单 两种授权类型。白放行、黑禁止**
+
+[黑白名单控制 · alibaba/Sentinel Wiki (github.com)](https://github.com/alibaba/Sentinel/wiki/黑白名单控制)
+
+> 调用方信息通过 `ContextUtil.enter(resourceName, origin)` 方法中的 `origin` 参数传入。
+
+**规则配置：**
+
+来源访问控制规则（`AuthorityRule`）非常简单，主要有以下配置项：
+
+- `resource`：资源名，即限流规则的作用对象。
+- `limitApp`：对应的黑名单/白名单，不同 origin 用 `,` 分隔，如 `appA,appB`。
+- `strategy`：限制模式，`AUTHORITY_WHITE` 为白名单模式，`AUTHORITY_BLACK` 为黑名单模式，默认为白名单模式。
+
+### 授权规则案例
+
+1. 业务类
+   ```java
+   @RestController
+   @Slf4j
+   public class EmpowerController {
+       /**
+        * Empower授权规则，用来处理请求的来源
+        * @return
+        */
+       @GetMapping(value = "/empower")
+       public String requestSentinel4() {
+           log.info("测试Sentinel授权规则empower");
+           return "Sentinel授权规则";
+       }
+   }
+   ```
+
+2. 定义授权流控应用属性名配置类
+
+   ```java
+   // 自定义请求来源处理器转换 定义sentinel授权规则应用属性名
+   @Component
+   public class MyRequestOriginParser implements RequestOriginParser {
+       @Override
+       public String parseOrigin(HttpServletRequest httpServletRequest) {
+           //  通过serverName来设定是白名单还是黑名单 定义sentinel授权规则的授权应用属性为serverName
+           return httpServletRequest.getParameter("serverName");
+       }
+   }
+   ```
+
+3. sentinel配置
+   ![image-20240917153001448](./MDImg/image-20240917153001448.png)
+
+4. 测试
+
+   - err http://localhost:8401/empower?serverName=test Blocked by Sentinel (flow limiting) 
+
+   - err http://localhost:8401/empower?serverName=test2 Blocked by Sentinel (flow limiting)
+
+     > 说明
+     >
+     > - 不断在浏览器中刷新http://localhost:8401/empower?serverName=test
+     > - 不断在浏览器中刷新http://localhost:8401/empower?serverName=test2
+     > - 上述2个rest地址，serverName=test或serverName=test2是处于黑名单的状态，无法访问，会发现无法访问，被Sentinel限流了 
+
+   - success http://localhost:8401/empower?serverName=ab
+
+## 规则持久化
+
+一旦我们重启微服务应用，sentine规则将消失，生产环境需要将配置规则进行持久化
+
+将限流配置规则持久化**进Nacos保存**，只要刷新8401某个rest地址，sentinel控制台的流控规则就能看到，只要Nacos里面的配置不删除，针对8401上sentinel上的流控规则持续有效
+
+步骤
+
+1. pom
+   ```html
+   <!--SpringCloud ailibaba sentinel-datasource-nacos  让nacos具有数据保存持久化的能力 该项目用于sentinel持久化-->
+   <dependency>
+       <groupId>com.alibaba.csp</groupId>
+       <artifactId>sentinel-datasource-nacos</artifactId>
+   </dependency>
+   ```
+
+2. yml
+   ```yaml
+   spring:
+     cloud:
+      sentinel:
+        datasource: # sentinel持久化 
+          ds1:
+            nacos: # 持久化到nacos
+              server-addr: localhost:8848
+              dataId: ${spring.application.name}
+              groupId: DEFAULT_GROUP
+              data-type: json
+              rule-type: flow # com.alibaba.cloud.sentinel.datasource.RuleType
+   ```
+
+   rule-type是什么？看看源码
+   ```java
+   public enum RuleType {
+       FLOW("flow", FlowRule.class),// 流量控制规则
+       DEGRADE("degrade", DegradeRule.class),// 熔断降级规则
+       PARAM_FLOW("param-flow", ParamFlowRule.class),// 热点规则
+       SYSTEM("system", SystemRule.class),// 系统保护规则
+       AUTHORITY("authority", AuthorityRule.class),// 访问控制规则
+       GW_FLOW("gw-flow", "com.alibaba.csp.sentinel.adapter.gateway.common.rule.GatewayFlowRule"),
+       GW_API_GROUP("gw-api-group", "com.alibaba.csp.sentinel.adapter.gateway.common.api.ApiDefinition");
+       ......
+   ```
+
+   详细介绍
+   ![image-20240917155613059](./MDImg/image-20240917155613059.png)
+
+3. 添加nacos业务规则配置
+   <img src="./MDImg/image-20240917155816433.png" alt="image-20240917155816433" style="zoom:67%;" />
+
+   ```json
+   [
+       {
+           "resource": "/rateLimit/byUrl",
+           "limitApp": "default",
+           "grade": 1,
+           "count": 1,
+           "strategy": 0,
+           "controlBehavior": 0,
+           "clusterMode": false
+       }
+   ]
+   ```
+
+   > 介绍
+   >
+   > - resource：资源名称；
+   > - limitApp：来源应用；
+   > - grade：阈值类型，0表示线程数，1表示QPS；
+   > - count：单机阈值；
+   > - strategy：流控模式，0表示直接，1表示关联，2表示链路；
+   > - controlBehavior：流控效果，0表示快速失败，1表示Warm Up，2表示排队等待；
+   > - clusterMode：是否集群。
+
+4. 此时发现sentinel出现nacos中刚配置的持久化的流控规则
+   ![image-20240917160423639](./MDImg/image-20240917160423639.png)
+   http://localhost:8401/rateLimit/byUrl业务规则生效
+
+5. 停止8401微服务
+   ![image-20240917161006723](./MDImg/image-20240917161006723.png)
+
+6. 再次启动8401微服务
+   乍一看还是没有，稍等一会儿，多次调用http://localhost:8401/rateLimit/byUrl刷新sentinel发现该配置再次出现，持久化成功

@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 /**
  * @author ZC_Wu 汐
  * @date 2024/8/9 15:14:08
- * @description 全局异常处理器
+ * @description 全局异常处理器 目前全局异常处理已被注释掉 方便测试是否触发sentinel异常比例/异常数熔断
  */
 @Slf4j
-@RestControllerAdvice
+//@RestControllerAdvice// 拦截异常并统一处理
 public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
