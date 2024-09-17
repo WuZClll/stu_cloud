@@ -1,5 +1,7 @@
 package com.xi.cloud.controller;
 
+import com.xi.cloud.apis.PayFeignSentinelApi;
+import com.xi.cloud.resp.ResultData;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,4 +27,15 @@ public class OrderNacosController {
         String result = restTemplate.getForObject(serverURL + "/pay/nacos/" + id, String.class);
         return result+"\t"+"    我是OrderNacosController83调用者。。。。。。";
     }
+
+    // ==OpenFeign和Sentinel集成实现fallback服务降级===================================================
+    // 消费者 通过openfeign对9001进行调用，调用过程中该fallback降级就降级，该sentinel流量监控就监控。
+    @Resource
+    private PayFeignSentinelApi payFeignSentinelApi;
+
+    @GetMapping(value = "/consumer/pay/nacos/get/{orderNo}")
+    public ResultData getPayByOrderNo(@PathVariable("orderNo") String orderNo) {
+        return payFeignSentinelApi.getPayByOrderNo(orderNo);
+    }
+
 }

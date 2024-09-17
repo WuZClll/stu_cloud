@@ -19,6 +19,12 @@
 
 
     <dependencies>
+        <!--SpringCloud ailibaba sentinel-datasource-nacos  让nacos具有数据保存持久化的能力 该项目用于sentinel持久化-->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+        </dependency>
+
         <!--SpringCloud alibaba sentinel -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

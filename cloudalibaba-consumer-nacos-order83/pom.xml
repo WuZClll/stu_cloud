@@ -19,6 +19,24 @@
 
 
     <dependencies>
+        <!-- 优化：OpenFeign和Sentinel集成实现fallback服务降级 消费者通过openfeign对9001进行调用，调用过程中该fallback降级就降级，该sentinel流量监控就监控。 -->
+        <!-- 引入自己定义的api通用包 -->
+        <dependency>
+            <groupId>com.xi.cloud</groupId>
+            <artifactId>cloud-api-commons</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!--openfeign-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <!--alibaba-sentinel-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+
         <!--nacos-discovery-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

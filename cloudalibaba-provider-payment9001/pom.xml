@@ -20,6 +20,18 @@
 
 
     <dependencies>
+        <!-- 优化：OpenFeign和Sentinel集成实现fallback服务降级: 微服务提供者9001对外提供一个服务，通过openfeign接口调用，该服务也需要被sentinel监控 -->
+        <!--openfeign-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <!--alibaba-sentinel-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+
         <!--nacos-discovery-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

@@ -8,6 +8,13 @@ spring:
     nacos:
       discovery:
         server-addr: localhost:8848 # 入驻进哪儿
+
 # 消费者将要去访问的微服务名称(nacos微服务提供者叫什么你写什么)
 service-url:
   nacos-user-service: http://nacos-payment-provider
+
+# 优化：OpenFeign和Sentinel集成实现fallback服务降级
+# 激活Sentinel对Feign的支持
+feign:
+  sentinel:
+    enabled: true
